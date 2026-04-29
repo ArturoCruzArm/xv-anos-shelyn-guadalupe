@@ -114,45 +114,55 @@
             buildNombreInputs(g.pases_asignados);
         }
 
-        // Si ya confirmo → mostrar estado, ocultar form
-        if (g.status === 'confirmada' || g.status === 'declinada') {
-            showAlreadyConfirmed();
-            return;
-        }
-
         // Marcar como vista si estaba pendiente o enviada
         if (g.status === 'pendiente' || g.status === 'enviada') {
             markAsViewed(g.id);
         }
 
-        // Enganchar el submit del formulario
+        // Enganchar el submit del formulario (siempre, para permitir modificaciones)
         attachFormSubmit();
+
+        // Si ya confirmo → mostrar estado con opcion de modificar
+        if (g.status === 'confirmada' || g.status === 'declinada') {
+            showAlreadyConfirmed();
+        }
     }
 
     // ── Ya confirmo anteriormente ────────────────────────────────────────────
     function showAlreadyConfirmed() {
-        const rsvpSection = document.getElementById('rsvp');
-        if (!rsvpSection) return;
         const g = guestData;
         const asiste = g.asiste;
         const nombres = g.nombres_acompanantes || [];
         const nombresHtml = nombres.length
             ? `<p style="color:#aaa;font-size:.9rem;margin-top:8px;">Asistentes: ${nombres.join(', ')}</p>`
             : '';
-        rsvpSection.innerHTML = `
-            <div style="text-align:center;padding:40px 20px;background:rgba(255,255,255,0.05);border-radius:20px;border:2px solid var(--gold,#d4af37);">
-                <div style="font-size:3rem;margin-bottom:16px;">${asiste ? '🎉' : '💌'}</div>
-                <h2 style="color:var(--gold,#d4af37);font-family:'Dancing Script',cursive;margin-bottom:12px;">
-                    ${asiste ? 'Ya confirmaste tu asistencia!' : 'Gracias por avisarnos'}
-                </h2>
-                <p style="color:var(--cream,#eee);font-size:1.1rem;margin-bottom:8px;">
-                    ${asiste
-                        ? `Te esperamos con ${g.pases_confirmados} ${g.pases_confirmados === 1 ? 'lugar' : 'lugares'} reservados.`
-                        : 'Lamentamos que no puedas acompanarnos en este dia tan especial.'}
-                </p>
-                ${nombresHtml}
-                ${g.mensaje ? `<p style="color:#aaa;font-style:italic;margin-top:12px;">"${g.mensaje}"</p>` : ''}
-            </div>`;
+
+        // Insertar mensaje antes del form, no reemplazar la seccion
+        const form = document.getElementById('rsvpForm');
+        if (!form) return;
+        form.style.display = 'none';
+
+        const div = document.createElement('div');
+        div.style.cssText = 'text-align:center;padding:30px 20px;background:rgba(255,255,255,0.05);border-radius:20px;border:2px solid var(--gold,#d4af37);margin-bottom:20px;';
+        div.innerHTML = `
+            <div style="font-size:3rem;margin-bottom:16px;">${asiste ? '🎉' : '💌'}</div>
+            <h2 style="color:var(--gold,#d4af37);font-family:'Dancing Script',cursive;margin-bottom:12px;">
+                ${asiste ? 'Ya confirmaste tu asistencia!' : 'Gracias por avisarnos'}
+            </h2>
+            <p style="color:var(--cream,#eee);font-size:1.1rem;margin-bottom:8px;">
+                ${asiste
+                    ? `Te esperamos con ${g.pases_confirmados || g.pases_asignados} ${(g.pases_confirmados || g.pases_asignados) === 1 ? 'lugar' : 'lugares'} reservados.`
+                    : 'Lamentamos que no puedas acompanarnos.'}
+            </p>
+            ${nombresHtml}
+            ${g.mensaje ? `<p style="color:#aaa;font-style:italic;margin-top:12px;">"${g.mensaje}"</p>` : ''}
+            <button id="btnModificar" style="margin-top:18px;padding:10px 28px;border-radius:20px;border:1px solid var(--gold,#d4af37);background:transparent;color:var(--gold,#d4af37);cursor:pointer;font-size:.9rem;">Modificar confirmacion</button>`;
+        form.parentNode.insertBefore(div, form);
+
+        div.querySelector('#btnModificar').addEventListener('click', function() {
+            div.style.display = 'none';
+            form.style.display = 'block';
+        });
     }
 
     // ── No encontrado ────────────────────────────────────────────────────────
