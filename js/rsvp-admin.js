@@ -17,38 +17,6 @@
     // ── Acceso directo sin PIN ───────────────────────────────────────────────
     function checkPin() { return true; }
 
-    function showPinScreen() {
-        document.body.innerHTML = `
-        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f0f4f8;font-family:'Lato',sans-serif;">
-            <div style="background:#fff;border-radius:16px;padding:48px 40px;max-width:360px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.12);text-align:center;">
-                <div style="font-size:2.5rem;margin-bottom:12px;">🔐</div>
-                <h2 style="margin:0 0 8px;color:#1c1c1c;font-size:1.4rem;">Acceso Admin</h2>
-                <p style="color:#666;margin:0 0 28px;font-size:.9rem;">Gestión de invitados — ${cfg.eventName || 'Evento'}</p>
-                <input id="pinInput" type="password" maxlength="10" placeholder="PIN de acceso"
-                    style="width:100%;padding:12px 16px;border:2px solid #ddd;border-radius:8px;font-size:1.1rem;text-align:center;letter-spacing:4px;box-sizing:border-box;outline:none;margin-bottom:16px;"
-                    onkeydown="if(event.key==='Enter')document.getElementById('pinBtn').click()">
-                <button id="pinBtn" onclick="window._checkPinInput()"
-                    style="width:100%;padding:12px;background:#6c5ce7;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;">
-                    Entrar
-                </button>
-                <div id="pinError" style="color:#d63031;margin-top:12px;font-size:.85rem;display:none;">PIN incorrecto. Intenta de nuevo.</div>
-                <br><a href="admin.html" style="color:#999;font-size:.8rem;">← Volver al panel</a>
-            </div>
-        </div>`;
-        setTimeout(() => document.getElementById('pinInput')?.focus(), 100);
-        window._checkPinInput = function () {
-            const val = document.getElementById('pinInput').value;
-            if (val === ADMIN_PIN) {
-                sessionStorage.setItem('rsvp_admin_pin', ADMIN_PIN);
-                location.reload();
-            } else {
-                document.getElementById('pinError').style.display = 'block';
-                document.getElementById('pinInput').value = '';
-                document.getElementById('pinInput').focus();
-            }
-        };
-    }
-
     // ── Obtener evento_id ────────────────────────────────────────────────────
     async function getEventoId() {
         if (eventoId) return eventoId;
@@ -61,7 +29,7 @@
     // ── Cargar invitados ─────────────────────────────────────────────────────
     async function loadGuests() {
         const eid = await getEventoId();
-        if (!eid) { showError('No se encontró el evento en la base de datos.'); return; }
+        if (!eid) { showError('No se encontro el evento en la base de datos.'); return; }
         const r = await fetch(
             `${SB_URL}/rest/v1/invitados?evento_id=eq.${eid}&order=fecha_creacion.asc`,
             { headers: SB_H }
@@ -74,7 +42,6 @@
     async function saveGuest(data) {
         const eid = await getEventoId();
         if (editingId) {
-            // Editar: solo campos del admin
             const r = await fetch(`${SB_URL}/rest/v1/invitados?id=eq.${editingId}`, {
                 method: 'PATCH',
                 headers: Object.assign({}, SB_H, { 'Prefer': 'return=representation' }),
@@ -84,7 +51,6 @@
             const idx = guests.findIndex(g => g.id === editingId);
             if (idx >= 0) guests[idx] = updated[0];
         } else {
-            // Crear nuevo
             const r = await fetch(`${SB_URL}/rest/v1/invitados`, {
                 method: 'POST',
                 headers: Object.assign({}, SB_H, { 'Prefer': 'return=representation' }),
@@ -98,7 +64,7 @@
 
     // ── Eliminar invitado ────────────────────────────────────────────────────
     async function deleteGuest(id) {
-        if (!confirm('¿Eliminar este invitado? Esta acción no se puede deshacer.')) return;
+        if (!confirm('Eliminar este invitado? Esta accion no se puede deshacer.')) return;
         await fetch(`${SB_URL}/rest/v1/invitados?id=eq.${id}`, { method: 'DELETE', headers: SB_H });
         guests = guests.filter(g => g.id !== id);
         renderAll();
@@ -111,9 +77,8 @@
         const link = `${BASE_URL}/index.html?inv=${g.token}`;
         const evName = cfg.eventName || 'el evento';
         const evDate = cfg.eventDate ? ` el ${cfg.eventDate}` : '';
-        const msg  = `Hola ${g.nombre} 👑✨\n\nTe invitamos cordialmente a *${evName}*${evDate}.\n\nTu enlace de invitación personalizada:\n${link}\n\nPor favor confirma tu asistencia desde el enlace. Tienes *${g.pases_asignados} ${g.pases_asignados === 1 ? 'pase' : 'pases'}* asignados. 🎀`;
+        const msg  = `Hola ${g.nombre}\n\nTe invitamos cordialmente a *${evName}*${evDate}.\n\nTu enlace de invitacion personalizada:\n${link}\n\nPor favor confirma tu asistencia desde el enlace. Tienes *${g.pases_asignados} ${g.pases_asignados === 1 ? 'pase' : 'pases'}* asignados.`;
 
-        // Marcar como enviada
         await fetch(`${SB_URL}/rest/v1/invitados?id=eq.${id}`, {
             method: 'PATCH',
             headers: Object.assign({}, SB_H, { 'Prefer': 'return=minimal' }),
@@ -130,26 +95,33 @@
         window.open(wa, '_blank');
     }
 
-    // ── Confirmar manualmente (sin WhatsApp) ─────────────────────────────────
+    // ── Confirmar manualmente ────────────────────────────────────────────────
     function confirmManual(id) {
         const g = guests.find(x => x.id === id);
         if (!g) return;
 
-        // Modal inline rápido
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+        let nombresHtml = '';
+        for (let i = 0; i < (g.pases_asignados || 1); i++) {
+            nombresHtml += `<input type="text" class="_mc_nombre" placeholder="Nombre persona ${i+1}" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:.9rem;box-sizing:border-box;margin-bottom:6px;">`;
+        }
+
         overlay.innerHTML = `
-            <div style="background:#fff;border-radius:14px;padding:32px;max-width:360px;width:90%;font-family:'Lato',sans-serif;">
-                <h3 style="margin:0 0 6px;font-size:1.1rem;">Confirmación manual</h3>
+            <div style="background:#fff;border-radius:14px;padding:32px;max-width:400px;width:90%;font-family:'Lato',sans-serif;max-height:90vh;overflow-y:auto;">
+                <h3 style="margin:0 0 6px;font-size:1.1rem;">Confirmacion manual</h3>
                 <p style="color:#666;font-size:.9rem;margin:0 0 20px;"><strong>${g.nombre}</strong> — ${g.pases_asignados} pases</p>
-                <label style="font-size:.82rem;font-weight:700;display:block;margin-bottom:6px;">¿Asistirá?</label>
+                <label style="font-size:.82rem;font-weight:700;display:block;margin-bottom:6px;">Asistira?</label>
                 <div style="display:flex;gap:10px;margin-bottom:18px;">
-                    <button id="_mc_si" style="flex:1;padding:10px;border-radius:8px;border:2px solid #55efc4;background:#f0fff8;font-weight:700;cursor:pointer;">✅ Sí asistirá</button>
-                    <button id="_mc_no" style="flex:1;padding:10px;border-radius:8px;border:2px solid #ccc;background:#f9f9f9;font-weight:700;cursor:pointer;">❌ No asistirá</button>
+                    <button id="_mc_si" style="flex:1;padding:10px;border-radius:8px;border:2px solid #55efc4;background:#f0fff8;font-weight:700;cursor:pointer;">Si asistira</button>
+                    <button id="_mc_no" style="flex:1;padding:10px;border-radius:8px;border:2px solid #ccc;background:#f9f9f9;font-weight:700;cursor:pointer;">No asistira</button>
                 </div>
-                <label style="font-size:.82rem;font-weight:700;display:block;margin-bottom:6px;">Personas que asistirán</label>
-                <input id="_mc_pases" type="number" min="0" max="${g.pases_asignados}" value="${g.pases_asignados}" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:1rem;box-sizing:border-box;margin-bottom:18px;">
-                <div style="display:flex;gap:10px;">
+                <label style="font-size:.82rem;font-weight:700;display:block;margin-bottom:6px;">Personas que asistiran</label>
+                <input id="_mc_pases" type="number" min="0" max="${g.pases_asignados}" value="${g.pases_asignados}" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:1rem;box-sizing:border-box;margin-bottom:14px;">
+                <label style="font-size:.82rem;font-weight:700;display:block;margin-bottom:6px;">Nombres de acompanantes</label>
+                <div id="_mc_nombres">${nombresHtml}</div>
+                <div style="display:flex;gap:10px;margin-top:18px;">
                     <button id="_mc_cancel" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;">Cancelar</button>
                     <button id="_mc_save" style="flex:1;padding:10px;border-radius:8px;background:#6c5ce7;color:#fff;border:none;font-weight:700;cursor:pointer;">Guardar</button>
                 </div>
@@ -174,6 +146,8 @@
         overlay.querySelector('#_mc_save').addEventListener('click', async () => {
             const asiste = selected === 'si';
             const pases  = parseInt(overlay.querySelector('#_mc_pases').value) || 0;
+            const nombres = Array.from(overlay.querySelectorAll('._mc_nombre'))
+                .map(inp => inp.value.trim()).filter(Boolean);
             overlay.remove();
             await fetch(`${SB_URL}/rest/v1/invitados?id=eq.${id}`, {
                 method: 'PATCH',
@@ -181,6 +155,7 @@
                 body: JSON.stringify({
                     status: asiste ? 'confirmada' : 'declinada',
                     asiste, pases_confirmados: pases,
+                    nombres_acompanantes: nombres,
                     fecha_confirmacion: new Date().toISOString()
                 })
             });
@@ -189,6 +164,7 @@
                 guests[idx].status = asiste ? 'confirmada' : 'declinada';
                 guests[idx].asiste = asiste;
                 guests[idx].pases_confirmados = pases;
+                guests[idx].nombres_acompanantes = nombres;
             }
             renderAll();
             showToast(asiste ? '✓ Confirmado manualmente' : '✓ Marcado como declinado');
@@ -210,7 +186,7 @@
         }
     }
 
-    // ── Estadísticas ─────────────────────────────────────────────────────────
+    // ── Estadisticas ─────────────────────────────────────────────────────────
     function calcStats() {
         const total        = guests.length;
         const confirmados  = guests.filter(g => g.status === 'confirmada').length;
@@ -242,7 +218,7 @@
         set('pendientes',     s.pendientes + s.enviados + s.vistos);
         set('noAsistiran',    s.declinados);
         set('totalAsistentes', s.totalAsisten);
-        set('totalPases',     s.totalPases);
+        set('totalPases',     s.totalPases + ' pases');
     }
 
     function renderCategories() {
@@ -267,6 +243,12 @@
         return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
     }
 
+    function renderNombres(g) {
+        const nombres = g.nombres_acompanantes || [];
+        if (!nombres.length) return '—';
+        return '<div class="nombres-list">' + nombres.map(n => `<span>• ${n}</span>`).join('') + '</div>';
+    }
+
     function renderTable() {
         const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
         const tbody  = document.getElementById('guestsTableBody');
@@ -279,20 +261,20 @@
         });
 
         if (!filtered.length) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#999;">No hay invitados en esta categoría</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#999;">No hay invitados en esta categoria</td></tr>';
             return;
         }
 
         tbody.innerHTML = filtered.map(g => {
             const s = STATUS_LABEL[g.status] || STATUS_LABEL.pendiente;
             const pConf = g.pases_confirmados ? `<strong>${g.pases_confirmados}</strong>` : '—';
-            const waDisabled = !g.telefono ? 'title="Sin teléfono"' : '';
             return `
             <tr data-id="${g.id}">
-                <td><strong>${g.nombre}</strong>${g.notas ? `<br><small style="color:#999">${g.notas}</small>` : ''}</td>
-                <td><span class="badge-cat cat-${g.categoria}">${g.categoria || '—'}</span></td>
+                <td><strong>${g.nombre}</strong>${g.notas ? `<br><small style="color:#999">${g.notas}</small>` : ''}${g.mensaje ? `<br><small style="color:#6c5ce7;font-style:italic">"${g.mensaje}"</small>` : ''}</td>
+                <td><span class="badge-cat cat-${g.categoria || 'otro'}">${g.categoria || '—'}</span></td>
                 <td style="text-align:center">${g.pases_asignados}</td>
                 <td style="text-align:center">${pConf}</td>
+                <td>${renderNombres(g)}</td>
                 <td>${g.mesa_asignada || '—'}</td>
                 <td><span class="status-badge ${s.cls}">${s.icon} ${s.text}</span></td>
                 <td style="font-size:.78rem">${fmtDate(g.fecha_envio)}<br>${fmtDate(g.fecha_confirmacion)}</td>
@@ -365,15 +347,16 @@
 
     function showError(msg) {
         const tbody = document.getElementById('guestsTableBody');
-        if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:30px;color:#e74c3c;">${msg}</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:30px;color:#e74c3c;">${msg}</td></tr>`;
     }
 
     // ── Export CSV ───────────────────────────────────────────────────────────
     function exportCSV() {
-        const headers = ['Nombre','Teléfono','Categoría','Pases Asig.','Pases Conf.','Mesa','Status','F. Envío','F. Confirmación','Mensaje'];
+        const headers = ['Nombre','Telefono','Categoria','Pases Asig.','Pases Conf.','Acompanantes','Mesa','Status','F. Envio','F. Confirmacion','Mensaje'];
         const rows = guests.map(g => [
             g.nombre, g.telefono || '', g.categoria || '', g.pases_asignados,
-            g.pases_confirmados || '', g.mesa_asignada || '', g.status,
+            g.pases_confirmados || '', (g.nombres_acompanantes || []).join('; '),
+            g.mesa_asignada || '', g.status,
             g.fecha_envio ? new Date(g.fecha_envio).toLocaleString('es-MX') : '',
             g.fecha_confirmacion ? new Date(g.fecha_confirmacion).toLocaleString('es-MX') : '',
             g.mensaje || ''
@@ -389,14 +372,11 @@
     // ── Init ─────────────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', function () {
         if (!checkPin()) return;
-
         loadGuests();
 
-        // Búsqueda
         const search = document.getElementById('searchInput');
         if (search) search.addEventListener('input', renderTable);
 
-        // Filtros
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', function () {
                 currentFilter = this.dataset.filter || 'all';
@@ -406,7 +386,6 @@
             });
         });
 
-        // Form submit del modal
         const form = document.getElementById('guestForm');
         if (form) {
             form.addEventListener('submit', async function (e) {
@@ -428,16 +407,12 @@
             });
         }
 
-        // Botón export CSV
         const btnExport = document.querySelector('[onclick="exportToExcel()"]');
         if (btnExport) { btnExport.onclick = exportCSV; btnExport.innerHTML = '<i class="fas fa-file-csv"></i> Exportar CSV'; }
 
-        // Exponer funciones al HTML (onclick inline)
         window.openAddGuestModal = openAddGuestModal;
         window.closeGuestModal   = closeGuestModal;
     });
 
-    // Exponer al window para onclick inline
     window.RSVP_ADMIN = { sendWhatsApp, copyLink, deleteGuest, openEdit, confirmManual };
 })();
-
