@@ -1076,13 +1076,13 @@
             const group = document.getElementById('nombresGroup');
             if (!container || !group) return;
             container.innerHTML = '';
-            if (count < 1) count = 1;
-            group.style.display = count >= 1 ? 'block' : 'none';
-            for (let i = 0; i < count; i++) {
+            const numAcomp = Math.max(0, count - 1);
+            group.style.display = numAcomp > 0 ? 'block' : 'none';
+            for (let i = 0; i < numAcomp; i++) {
                 const inp = document.createElement('input');
                 inp.type = 'text';
                 inp.className = 'nombre-asistente';
-                inp.placeholder = 'Nombre persona ' + (i + 1);
+                inp.placeholder = 'Nombre acompanante ' + (i + 1);
                 inp.style.cssText = 'width:100%;padding:10px;margin-bottom:6px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;background:rgba(255,255,255,0.08);color:inherit;font-size:.95rem;';
                 container.appendChild(inp);
             }
