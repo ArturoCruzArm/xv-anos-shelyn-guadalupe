@@ -1114,18 +1114,24 @@
                     const evR = await fetch(`${SB_URL}/rest/v1/eventos?slug=eq.${SLUG}&select=id&limit=1`, { headers: SB_H });
                     const [ev] = await evR.json();
                     if (ev?.id) {
-                        await fetch(`${SB_URL}/rest/v1/invitados`, {
+                        const invR = await fetch(`${SB_URL}/rest/v1/invitados`, {
                             method: 'POST',
-                            headers: { ...SB_H, 'Prefer': 'return=minimal' },
+                            headers: { ...SB_H, 'Prefer': 'return=representation' },
                             body: JSON.stringify({
                                 evento_id: ev.id, nombre,
                                 pases_asignados: pases, pases_confirmados: pases,
-                                nombres_acompanantes: nombres,
                                 asiste, status: asiste ? 'confirmada' : 'declinada',
                                 mensaje: mensaje || null,
                                 fecha_confirmacion: new Date().toISOString()
                             })
                         });
+                        const [inv] = await invR.json();
+                        if (inv?.id && nombres.length) {
+                            await fetch(`${SB_URL}/rest/v1/acompanantes`, {
+                                method: 'POST', headers: { ...SB_H, 'Prefer': 'return=minimal' },
+                                body: JSON.stringify(nombres.map((n, i) => ({ invitado_id: inv.id, nombre: n, orden: i })))
+                            });
+                        }
                     }
                 } catch (err) {}
                 form.style.display = 'none';
@@ -1135,7 +1141,7 @@
                 const txt = asiste
                     ? `Hola, confirmo mi asistencia a ${NOMBRE_EVENTO}.\nNombre: ${nombre}\nPersonas: ${pases}${nombresStr}${mensaje ? '\nMensaje: ' + mensaje : ''}`
                     : `Hola, lamentablemente no podre asistir a ${NOMBRE_EVENTO}.\nNombre: ${nombre}${mensaje ? '\nMensaje: ' + mensaje : ''}`;
-                WA_NUMS.forEach((num, i) => setTimeout(() => window.open(`https://wa.me/${num}?text=${encodeURIComponent(txt)}`, '_blank'), 400 + i * 600));
+                WA_NUMS.forEach(function(num) { window.location.href = 'https://wa.me/' + num + '?text=' + encodeURIComponent(txt); });
             });
         }
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attachHandler);
@@ -1162,9 +1168,10 @@
         if(sub)sub.textContent='Hola,';
         document.querySelectorAll('.splash-names,.splash-name,.splash-title').forEach(function(el){el.style.display='none';});
         if(dateEl)dateEl.style.display='none';
-        if(gEl){gEl.textContent=g.nombre;gEl.style.display='block';}
+        var extras=g.pases_asignados-1;
+        if(gEl){gEl.textContent=extras>0?g.nombre+' y '+extras+' mas':g.nombre;gEl.style.display='block';}
         if(pEl){pEl.textContent='🎟 '+g.pases_asignados+' '+(g.pases_asignados===1?'pase':'pases');pEl.style.display='block';}
-        if(btn)btn.textContent='Ver mi Invitación';
+        if(btn)btn.textContent='Ver mi Invitacion';
     }).catch(function(){});
 })();
 </script>
