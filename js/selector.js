@@ -37,7 +37,7 @@ async function sbRegistrarVisita(pagina = 'selector') {
 }
 
 // ========================================
-// GLOBAL VARIABLES - XV Años Clara Susana
+// GLOBAL VARIABLES - XV Años Sheilyn Guadalupe
 // ========================================
 // Lista de fotos generada automáticamente
 // Total: 1111 fotos
@@ -89,7 +89,7 @@ const photos = [
 // ── Configuración del evento ──
 const CONFIG = {
     slug:               'xv-sheilyn-guadalupe',
-    nombre:             (window.EVENT_CONFIG && window.EVENT_CONFIG.nombre)             || 'Clara Susana Palomares Torres',
+    nombre:             (window.EVENT_CONFIG && window.EVENT_CONFIG.nombre)             || 'Sheilyn Guadalupe',
     telefono:           (window.EVENT_CONFIG && window.EVENT_CONFIG.telefono)           || '',
     fechaEvento:        (window.EVENT_CONFIG && window.EVENT_CONFIG.fechaEvento)        || new Date(2026, 2, 28, 17, 0, 0),
     limiteImpresion:    200,
@@ -97,7 +97,7 @@ const CONFIG = {
     costoFotoAdicional: (window.EVENT_CONFIG && window.EVENT_CONFIG.costoFotoAdicional) || 15,
 };
 
-const STORAGE_KEY = 'xv_anos_clara_susana_photo_selections';
+const STORAGE_KEY = 'xv_anos_sheilyn_guadalupe_photo_selections';
 const KEY_FILTER   = 'xv_filter';
 const KEY_SCROLL   = 'xv_scroll';
 const KEY_LAST     = 'xv_last_photo';
@@ -739,7 +739,7 @@ function exportToJSON() {
     const costoExtra = fotosAdicionales * COSTO_FOTO_ADICIONAL;
 
     const exportData = {
-        evento: 'XV Años - Clara Susana Palomares Torres',
+        evento: 'XV Años - Sheilyn Guadalupe',
         fecha_exportacion: new Date().toISOString(),
         total_fotos: photos.length,
         estadisticas: stats,
@@ -766,7 +766,7 @@ function exportToJSON() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `seleccion-fotos-xv-clara-susana-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `seleccion-fotos-xv-sheilyn-guadalupe-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
 
@@ -778,7 +778,7 @@ function generateTextSummary() {
     const fotosAdicionales = Math.max(0, stats.impresion - LIMITES.impresion);
     const costoExtra = fotosAdicionales * COSTO_FOTO_ADICIONAL;
 
-    let summary = '🎉 SELECCIÓN DE FOTOS - XV AÑOS CLARA SUSANA PALOMARES TORRES\n';
+    let summary = '🎉 SELECCIÓN DE FOTOS - XV AÑOS SHEILYN GUADALUPE\n';
     summary += '═══════════════════════════════════════════════════\n\n';
     summary += `📋 SEGÚN CONTRATO:\n`;
     summary += `   📸 Impresión incluida: ${LIMITES.impresion} fotos\n\n`;
