@@ -1,47 +1,7 @@
 // ========================================
-// SUPABASE CONFIG
-// ========================================
-const SUPABASE_URL  = 'https://nzpujmlienzfetqcgsxz.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im56cHVqbWxpZW56ZmV0cWNnc3h6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2ODYzMzYsImV4cCI6MjA5MDI2MjMzNn0.xl3lsb-KYj5tVLKTnzpbsdEGoV9ySnswH4eyRuyEH1s';
-const EVENTO_SLUG   = 'xv-sheilyn-guadalupe';
-const SB_HEADERS    = { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}`, 'Content-Type': 'application/json' };
-
-function getSessionId() {
-    const KEY = 'foro7_sid';
-    let sid = localStorage.getItem(KEY);
-    if (!sid) { sid = crypto.randomUUID(); localStorage.setItem(KEY, sid); }
-    return sid;
-}
-const SESSION_ID = getSessionId();
-let eventoIdCache = null;
-let sbDisponible  = true;
-
-async function sbGetEventoId() {
-    if (eventoIdCache) return eventoIdCache;
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/eventos?slug=eq.${EVENTO_SLUG}&select=id&limit=1`, { headers: SB_HEADERS });
-    const [ev] = await r.json();
-    eventoIdCache = ev?.id || null;
-    return eventoIdCache;
-}
-
-async function sbRegistrarVisita(pagina = 'selector') {
-    try {
-        const evento_id = await sbGetEventoId();
-        if (!evento_id) return;
-        await fetch(`${SUPABASE_URL}/rest/v1/visitas`, {
-            method: 'POST',
-            headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
-            body: JSON.stringify({ evento_id, pagina, session_id: SESSION_ID })
-        });
-    } catch(e) {}
-}
-
-// ========================================
 // GLOBAL VARIABLES - XV Años Sheilyn Guadalupe
 // ========================================
-// Lista de fotos generada automáticamente
-// Total: 1111 fotos
-// Generado: 2026-03-29 03:11
+// Total: 183 fotos
 const photos = [
     "img/2026-03-31-17-28-52-312.webp","img/2026-03-31-17-28-55-708.webp","img/2026-03-31-17-28-57-750.webp","img/2026-03-31-17-29-07-289.webp","img/2026-03-31-17-30-53-700.webp",
     "img/2026-03-31-17-31-09-321.webp","img/2026-03-31-17-31-12-022.webp","img/DJI_20260331_174156_089.webp","img/DJI_20260331_174207_436.webp","img/DJI_20260331_174214_316.webp",
@@ -86,211 +46,79 @@ const photos = [
     "img/DSC_5101.webp","img/img 2.webp","img/img1.webp"
 ];
 
-// ── Configuración del evento ──
-const CONFIG = {
-    slug:               'xv-sheilyn-guadalupe',
-    nombre:             (window.EVENT_CONFIG && window.EVENT_CONFIG.nombre)             || 'Sheilyn Guadalupe',
-    telefono:           (window.EVENT_CONFIG && window.EVENT_CONFIG.telefono)           || '',
-    fechaEvento:        (window.EVENT_CONFIG && window.EVENT_CONFIG.fechaEvento)        || new Date(2026, 2, 28, 17, 0, 0),
-    limiteImpresion:    200,
-    limiteInvitacion:   null,
-    costoFotoAdicional: (window.EVENT_CONFIG && window.EVENT_CONFIG.costoFotoAdicional) || 15,
-};
-
 const STORAGE_KEY = 'xv_anos_sheilyn_guadalupe_photo_selections';
-const KEY_FILTER   = 'xv_filter';
-const KEY_SCROLL   = 'xv_scroll';
-const KEY_LAST     = 'xv_last_photo';
 const LIMITES = {
-    impresion: CONFIG.limiteImpresion,
-    invitacion: CONFIG.limiteInvitacion
+    ampliacion: null,
+    impresion: 200,
+    invitacion: null
 };
-const COSTO_FOTO_ADICIONAL = CONFIG.costoFotoAdicional;
-
+const COSTO_FOTO_ADICIONAL = (window.EVENT_CONFIG && window.EVENT_CONFIG.costoFotoAdicional) || 15;
 let photoSelections = {};
 let currentPhotoIndex = null;
 let currentFilter = 'all';
-let touchStartX = 0;
-let touchStartY = 0;
-let scrollPositionBeforeModal = 0;
-let scrollSaveTimer = null;
-let modalOpen = false;
 
 // ========================================
 // LOCAL STORAGE FUNCTIONS
 // ========================================
-function mostrarBannerSinSeleccion() {
-    if (document.getElementById('banner-sin-sel')) return;
-    if (Object.keys(photoSelections).length > 0) return;
-    if (CONFIG.fechaEvento > new Date()) return;
-    const banner = document.createElement('div');
-    banner.id = 'banner-sin-sel';
-    banner.style.cssText = 'background:#78350f;color:#fcd34d;text-align:center;padding:12px 20px;font-size:.88rem;position:sticky;top:0;z-index:200;line-height:1.5;';
-    banner.innerHTML = '📸 <strong>¡Tus fotos están listas!</strong> Aún no has seleccionado ninguna foto. ¡Empieza ahora! <button onclick="this.parentElement.remove()" style="margin-left:12px;background:transparent;border:1px solid #fcd34d;color:#fcd34d;padding:1px 8px;border-radius:4px;cursor:pointer;font-size:.85rem;">×</button>';
-    document.body.insertBefore(banner, document.body.firstChild);
-}
-
-async function loadSelections(isPoll = false) {
-    if (!isPoll) {
-        // Carga inicial: mostrar localStorage de inmediato (cero latencia)
-        try {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) photoSelections = JSON.parse(saved);
-        } catch(e) { photoSelections = {}; }
-    }
-
-    if (!sbDisponible) return;
+function loadSelections() {
     try {
-        const evento_id = await sbGetEventoId();
-        if (!evento_id) { sbDisponible = false; return; }
-
-        const r = await fetch(
-            `${SUPABASE_URL}/rest/v1/selecciones?evento_id=eq.${evento_id}&select=foto_index,impresion,invitacion,descartada,ampliacion,datos`,
-            { headers: SB_HEADERS }
-        );
-        if (!r.ok) throw new Error(r.status);
-        const rows = await r.json();
-
-        const sb = {};
-        rows.forEach(row => {
-            const d = row.datos || {};
-            if (row.impresion || row.invitacion || row.descartada || row.ampliacion || d.caja_fotos || d.caja_usb)
-                sb[row.foto_index] = {
-                    impresion: row.impresion, invitacion: row.invitacion,
-                    descartada: row.descartada, ampliacion: row.ampliacion,
-                    caja_fotos: d.caja_fotos || false, caja_usb: d.caja_usb || false
-                };
-        });
-
-            if (!isPoll) {
-            // Carga inicial: merge y migrar localStorage a Supabase para que otros lo vean
-            const merged = {...sb};
-            Object.entries(photoSelections).forEach(([idx, sel]) => {
-                if (sel.impresion || sel.invitacion || sel.descartada || sel.ampliacion || sel.caja_fotos || sel.caja_usb) merged[idx] = sel;
-            });
-            photoSelections = merged;
-            if (Object.keys(photoSelections).length > 0) {
-                sbSyncSelections().catch(e => console.warn('[Supabase] Migración:', e.message));
-            }
-            sbRegistrarVisita('selector');
-            mostrarBannerSinSeleccion();
-        } else {
-            // Polling: Supabase es la verdad compartida, reemplaza estado local
-            photoSelections = sb;
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            photoSelections = JSON.parse(saved);
         }
-
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(photoSelections)); } catch(e) {}
-        if (isPoll) {
-            const oldSels = {};
-            try { Object.assign(oldSels, JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')); } catch(e) {}
-            const allIdx = new Set([...Object.keys(sb), ...Object.keys(oldSels)].map(Number));
-            allIdx.forEach(idx => {
-                if (JSON.stringify(oldSels[idx] || {}) !== JSON.stringify(sb[idx] || {})) updateCard(idx);
-            });
-            updateStats(); updateFilterButtons();
-        } else {
-            renderGallery(); setupLazyLoad(); updateStats(); updateFilterButtons();
-        }
-    } catch(e) {
-        console.warn('[Supabase] Usando localStorage:', e.message);
-        sbDisponible = false;
+    } catch (error) {
+        console.error('Error cargando selecciones:', error);
+        photoSelections = {};
     }
 }
 
-async function saveSelections() {
+function normalizeSelection(selection) {
+    return {
+        ampliacion: !!(selection && selection.ampliacion),
+        impresion: !!(selection && selection.impresion),
+        invitacion: !!(selection && selection.invitacion),
+        descartada: !!(selection && selection.descartada),
+        caja_fotos: !!(selection && selection.caja_fotos),
+        caja_usb: !!(selection && selection.caja_usb)
+    };
+}
+
+function hasAnySelection(selection) {
+    const n = normalizeSelection(selection);
+    return n.ampliacion || n.impresion || n.invitacion || n.descartada || n.caja_fotos || n.caja_usb;
+}
+
+function selectionsAreEqual(a, b) {
+    const left = normalizeSelection(a);
+    const right = normalizeSelection(b);
+    return left.ampliacion === right.ampliacion
+        && left.impresion === right.impresion
+        && left.invitacion === right.invitacion
+        && left.descartada === right.descartada
+        && left.caja_fotos === right.caja_fotos
+        && left.caja_usb === right.caja_usb;
+}
+
+function saveSelections(options) {
+    const shouldSync = !options || options.sync !== false;
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(photoSelections));
-    } catch(e) {
+    } catch (error) {
         showToast('Error al guardar. Verifica el espacio del navegador.', 'error');
     }
-    if (!sbDisponible) return;
-    sbSyncSelections().catch(e => console.warn('[Supabase] Sync error:', e.message));
-}
-
-async function sbSyncSelections() {
-    const snapshot = {...photoSelections}; // snapshot BEFORE any await
-    const evento_id = await sbGetEventoId();
-    if (!evento_id) return;
-    const rows = Object.entries(snapshot).map(([idx, sel]) => ({
-        evento_id, session_id: SESSION_ID, foto_index: parseInt(idx),
-        impresion: sel.impresion || false, invitacion: sel.invitacion || false,
-        descartada: sel.descartada || false, ampliacion: sel.ampliacion || false,
-        datos: { caja_fotos: sel.caja_fotos || false, caja_usb: sel.caja_usb || false },
-    }));
-    if (rows.length === 0) return;
-    await fetch(`${SUPABASE_URL}/rest/v1/selecciones?on_conflict=evento_id,foto_index`, {
-        method: 'POST',
-        headers: { ...SB_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify(rows)
-    });
-}
-
-function swipeSaveAndNext() {
-    if (currentPhotoIndex === null) return;
-    const selectedCategories = {};
-    let hasAnySelection = false;
-    document.querySelectorAll('.option-btn').forEach(btn => {
-        selectedCategories[btn.dataset.category] = btn.classList.contains('selected');
-        if (btn.classList.contains('selected')) hasAnySelection = true;
-    });
-    if (hasAnySelection) {
-        photoSelections[currentPhotoIndex] = selectedCategories;
-    } else {
-        const idx = currentPhotoIndex;
-        delete photoSelections[idx];
-        if (sbDisponible) sbDeleteSelection(idx).catch(e => console.warn('[Supabase] Delete:', e.message));
+    if (shouldSync && typeof sbUpsertSelections === 'function') {
+        sbUpsertSelections().catch(function(e) { console.warn('[Supabase] Sync:', e.message); });
     }
-    saveSelections();
-    updateCard(currentPhotoIndex);
-    updateStats();
-    updateFilterButtons();
-    navigatePhoto('next');
-    showToast('Guardado ✓', 'success');
 }
 
-function swipeClearAndNext() {
-    if (currentPhotoIndex === null) return;
-    const idx = currentPhotoIndex;
-    if (photoSelections[idx]) {
-        delete photoSelections[idx];
-        if (sbDisponible) sbDeleteSelection(idx).catch(e => console.warn('[Supabase] Delete:', e.message));
-        saveSelections();
-        updateCard(idx);
-        updateStats();
-        updateFilterButtons();
-    }
-    document.querySelectorAll('.option-btn').forEach(btn => btn.classList.remove('selected'));
-    navigatePhoto('next');
-    showToast('Selección quitada', 'success');
-}
-
-async function sbDeleteSelection(foto_index) {
-    const evento_id = await sbGetEventoId();
-    if (!evento_id) return;
-    await fetch(
-        `${SUPABASE_URL}/rest/v1/selecciones?evento_id=eq.${evento_id}&foto_index=eq.${foto_index}`,
-        { method: 'DELETE', headers: SB_HEADERS }
-    );
-}
-
-async function clearAllSelections() {
+function clearAllSelections() {
     if (confirm('¿Estás seguro de que quieres borrar TODAS las selecciones? Esta acción no se puede deshacer.')) {
-        // Borrar de Supabase primero
-        if (sbDisponible) {
-            try {
-                const evento_id = await sbGetEventoId();
-                if (evento_id) {
-                    await fetch(
-                        `${SUPABASE_URL}/rest/v1/selecciones?evento_id=eq.${evento_id}`,
-                        { method: 'DELETE', headers: SB_HEADERS }
-                    );
-                }
-            } catch(e) { console.warn('[Supabase] Error al borrar:', e.message); }
-        }
         photoSelections = {};
-        try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+        try { localStorage.setItem(STORAGE_KEY, '{}'); } catch(e) {}
+        if (typeof sbDeleteAll === 'function') {
+            sbDeleteAll().catch(function(e) { console.warn('[Supabase] DeleteAll:', e.message); });
+        }
         renderGallery();
-        setupLazyLoad();
         updateStats();
         updateFilterButtons();
         showToast('Todas las selecciones han sido eliminadas', 'success');
@@ -302,18 +130,22 @@ async function clearAllSelections() {
 // ========================================
 function getStats() {
     const stats = {
-        impresion: 0, invitacion: 0, descartada: 0, ampliacion: 0,
-        caja_fotos: null, caja_usb: null,
+        ampliacion: 0,
+        impresion: 0,
+        invitacion: 0,
+        descartada: 0,
+        caja_fotos: null,
+        caja_usb: null,
         sinClasificar: photos.length
     };
 
     Object.entries(photoSelections).forEach(([idx, selection]) => {
-        if (selection.impresion)  stats.impresion++;
+        if (selection.ampliacion) stats.ampliacion++;
+        if (selection.impresion) stats.impresion++;
         if (selection.invitacion) stats.invitacion++;
         if (selection.descartada) stats.descartada++;
-        if (selection.ampliacion) stats.ampliacion++;
         if (selection.caja_fotos) stats.caja_fotos = parseInt(idx);
-        if (selection.caja_usb)   stats.caja_usb   = parseInt(idx);
+        if (selection.caja_usb) stats.caja_usb = parseInt(idx);
     });
 
     stats.sinClasificar = photos.length - Object.keys(photoSelections).length;
@@ -323,43 +155,29 @@ function getStats() {
 
 function updateStats() {
     const stats = getStats();
+    const limite = LIMITES.impresion;
 
-    document.getElementById('countImpresion').textContent =
-        LIMITES.impresion ? `${stats.impresion}/${LIMITES.impresion}` : stats.impresion;
+    document.getElementById('countImpresion').textContent = limite ? stats.impresion + '/' + limite : stats.impresion;
     document.getElementById('countInvitacion').textContent = stats.invitacion;
     document.getElementById('countDescartada').textContent = stats.descartada;
     document.getElementById('countSinClasificar').textContent = stats.sinClasificar;
     document.getElementById('countAmpliacion').textContent = stats.ampliacion;
-    document.getElementById('countCajaFotos').textContent = stats.caja_fotos !== null ? `#${stats.caja_fotos + 1}` : '—';
-    document.getElementById('countCajaUsb').textContent   = stats.caja_usb   !== null ? `#${stats.caja_usb   + 1}` : '—';
 
-    const fotosAdicionales = Math.max(0, stats.impresion - LIMITES.impresion);
-    const costoExtra = fotosAdicionales * COSTO_FOTO_ADICIONAL;
+    var elCajaFotos = document.getElementById('countCajaFotos');
+    var elCajaUsb = document.getElementById('countCajaUsb');
+    if (elCajaFotos) elCajaFotos.textContent = stats.caja_fotos !== null ? 'Foto ' + (stats.caja_fotos + 1) : '—';
+    if (elCajaUsb) elCajaUsb.textContent = stats.caja_usb !== null ? 'Foto ' + (stats.caja_usb + 1) : '—';
 
-    const extraCostDisplay = document.getElementById('extraCostDisplay');
-    if (extraCostDisplay) {
-        if (fotosAdicionales > 0) {
-            extraCostDisplay.style.display = 'block';
-            document.getElementById('extraCostAmount').textContent = `$${costoExtra} MXN`;
-            document.getElementById('extraCostDetail').textContent = `${fotosAdicionales} foto${fotosAdicionales > 1 ? 's' : ''} adicional${fotosAdicionales > 1 ? 'es' : ''} x $${COSTO_FOTO_ADICIONAL}`;
-        } else {
-            extraCostDisplay.style.display = 'none';
-        }
-    }
-
-    const impresionCard = document.querySelector('.stat-card.impresion');
-
-    if (impresionCard) {
-        if (stats.impresion > LIMITES.impresion) {
-            impresionCard.style.borderColor = '#ff9800';
-            impresionCard.style.backgroundColor = 'rgba(255, 152, 0, 0.1)';
-        } else if (stats.impresion === LIMITES.impresion) {
-            impresionCard.style.borderColor = '#4caf50';
-            impresionCard.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
-        } else {
-            impresionCard.style.borderColor = '';
-            impresionCard.style.backgroundColor = '';
-        }
+    // Extra cost display
+    var extraDisplay = document.getElementById('extraCostDisplay');
+    if (extraDisplay && limite && stats.impresion > limite) {
+        var extra = stats.impresion - limite;
+        var costo = extra * COSTO_FOTO_ADICIONAL;
+        document.getElementById('extraCostDetail').textContent = extra + ' foto' + (extra > 1 ? 's' : '');
+        document.getElementById('extraCostAmount').textContent = '$' + costo;
+        extraDisplay.style.display = 'block';
+    } else if (extraDisplay) {
+        extraDisplay.style.display = 'none';
     }
 }
 
@@ -368,18 +186,16 @@ function updateStats() {
 // ========================================
 function renderGallery() {
     const grid = document.getElementById('photosGrid');
-    if (!grid) return;
-
     grid.innerHTML = '';
 
     if (photos.length === 0) {
-        grid.innerHTML = '<div class="no-photos-message">Las fotos estarán disponibles después del evento (28 de marzo de 2026)</div>';
+        grid.innerHTML = '<div class="no-photos-message">No hay fotos disponibles aún.</div>';
         return;
     }
 
     photos.forEach((photo, index) => {
         const selection = photoSelections[index] || {};
-        const hasAny = selection.impresion || selection.invitacion || selection.descartada;
+        const hasAny = selection.ampliacion || selection.impresion || selection.invitacion || selection.descartada || selection.caja_fotos || selection.caja_usb;
 
         const card = document.createElement('div');
         card.className = 'photo-card';
@@ -389,85 +205,39 @@ function renderGallery() {
             card.classList.add('has-descartada');
         } else {
             const categories = [];
+            if (selection.ampliacion) categories.push('ampliacion');
             if (selection.impresion) categories.push('impresion');
             if (selection.invitacion) categories.push('invitacion');
+            if (selection.caja_fotos) categories.push('caja_fotos');
+            if (selection.caja_usb) categories.push('caja_usb');
 
             if (categories.length > 1) {
                 card.classList.add('has-multiple');
             } else if (categories.length === 1) {
-                card.classList.add(`has-${categories[0]}`);
+                card.classList.add('has-' + categories[0]);
             }
         }
 
         let badgesHTML = '';
         if (hasAny) {
             badgesHTML = '<div class="photo-badges">';
-            if (selection.impresion) badgesHTML += '<span class="badge badge-impresion">📸 Impresión</span>';
-            if (selection.invitacion) badgesHTML += '<span class="badge badge-invitacion">💌 Invitación</span>';
-            if (selection.descartada) badgesHTML += '<span class="badge badge-descartada">❌ Descartada</span>';
+            if (selection.ampliacion) badgesHTML += '<span class="badge badge-ampliacion">🖼️</span>';
+            if (selection.impresion) badgesHTML += '<span class="badge badge-impresion">📸</span>';
+            if (selection.invitacion) badgesHTML += '<span class="badge badge-invitacion">💌</span>';
+            if (selection.descartada) badgesHTML += '<span class="badge badge-descartada">❌</span>';
+            if (selection.caja_fotos) badgesHTML += '<span class="badge badge-caja_fotos">📦</span>';
+            if (selection.caja_usb) badgesHTML += '<span class="badge badge-caja_usb">💾</span>';
             badgesHTML += '</div>';
         }
 
-        const displayNumber = `Foto ${index + 1}`;
-        const mediaHTML = `
-            <div class="photo-image-container">
-                <img data-src="${photo}" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 3'/%3E" alt="${displayNumber}" class="lazy-img">
-            </div>
-        `;
-
-        card.innerHTML = `
-            ${mediaHTML}
-            <div class="photo-number">${displayNumber}</div>
-            ${badgesHTML}
-        `;
+        const displayNumber = 'Foto ' + (index + 1);
+        card.innerHTML = '<div class="photo-image-container"><img src="' + photo + '" alt="' + displayNumber + '" loading="lazy"></div><div class="photo-number">' + displayNumber + '</div>' + badgesHTML;
 
         card.addEventListener('click', () => openModal(index));
         grid.appendChild(card);
     });
 
     applyFilter();
-}
-
-// ========================================
-// LAZY LOADER CON COLA (máx 4 concurrentes — evita throttle de GitHub en iOS)
-// ========================================
-let lazyObserver = null;
-let lazyQueue = [];
-let lazyActive = 0;
-const LAZY_MAX = 4;
-
-function lazyLoadNext() {
-    while (lazyActive < LAZY_MAX && lazyQueue.length > 0) {
-        const img = lazyQueue.shift();
-        if (!img.dataset.src || img.classList.contains('lazy-loaded')) continue;
-        lazyActive++;
-        img.onload = img.onerror = () => { lazyActive--; lazyLoadNext(); };
-        img.src = img.dataset.src;
-        img.classList.add('lazy-loaded');
-    }
-}
-
-function setupLazyLoad() {
-    if (lazyObserver) lazyObserver.disconnect();
-    lazyQueue = [];
-    lazyActive = 0;
-
-    lazyObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const img = entry.target;
-                lazyObserver.unobserve(img);
-                if (!img.classList.contains('lazy-loaded')) {
-                    lazyQueue.push(img);
-                    lazyLoadNext();
-                }
-            }
-        });
-    }, { rootMargin: '300px 0px' });
-
-    document.querySelectorAll('img.lazy-img:not(.lazy-loaded)').forEach(img => {
-        lazyObserver.observe(img);
-    });
 }
 
 // ========================================
@@ -485,6 +255,9 @@ function applyFilter() {
             case 'all':
                 show = true;
                 break;
+            case 'ampliacion':
+                show = selection.ampliacion === true;
+                break;
             case 'impresion':
                 show = selection.impresion === true;
                 break;
@@ -494,8 +267,14 @@ function applyFilter() {
             case 'descartada':
                 show = selection.descartada === true;
                 break;
+            case 'caja_fotos':
+                show = selection.caja_fotos === true;
+                break;
+            case 'caja_usb':
+                show = selection.caja_usb === true;
+                break;
             case 'sin-clasificar':
-                show = !selection.impresion && !selection.invitacion && !selection.descartada;
+                show = !selection.ampliacion && !selection.impresion && !selection.invitacion && !selection.descartada && !selection.caja_fotos && !selection.caja_usb;
                 break;
         }
 
@@ -511,36 +290,27 @@ function setFilter(filter) {
         btn.classList.remove('active');
     });
 
-    const activeBtn = document.querySelector(`[data-filter="${filter}"]`);
+    const activeBtn = document.querySelector('[data-filter="' + filter + '"]');
     if (activeBtn) {
         activeBtn.classList.add('active');
     }
-    try { localStorage.setItem(KEY_FILTER, filter); } catch (e) {}
 }
 
 function updateFilterButtons() {
     const stats = getStats();
 
-    const btnAll = document.getElementById('btnFilterAll');
-    const btnImpresion = document.getElementById('btnFilterImpresion');
-    const btnInvitacion = document.getElementById('btnFilterInvitacion');
-    const btnDescartada = document.getElementById('btnFilterDescartada');
-    const btnSinClasificar = document.getElementById('btnFilterSinClasificar');
+    document.getElementById('btnFilterAll').textContent = 'Todas (' + photos.length + ')';
+    document.getElementById('btnFilterImpresion').textContent = 'Impresión (' + stats.impresion + ')';
+    document.getElementById('btnFilterInvitacion').textContent = 'Invitación (' + stats.invitacion + ')';
+    document.getElementById('btnFilterDescartada').textContent = 'Descartadas (' + stats.descartada + ')';
+    document.getElementById('btnFilterSinClasificar').textContent = 'Sin Clasificar (' + stats.sinClasificar + ')';
 
-    if (btnAll) btnAll.textContent = `Todas (${photos.length})`;
-    if (btnImpresion) btnImpresion.textContent = `Impresión (${stats.impresion})`;
-    if (btnInvitacion) btnInvitacion.textContent = `Invitación (${stats.invitacion})`;
-    if (btnDescartada) btnDescartada.textContent = `Descartadas (${stats.descartada})`;
-    if (btnSinClasificar) btnSinClasificar.textContent = `Sin Clasificar (${stats.sinClasificar})`;
-}
-
-// ── Preload pool ──
-const _preloadCache = new Map();
-function _preloadImg(url) {
-    if (_preloadCache.has(url)) return;
-    const img = new Image();
-    img.src = url;
-    _preloadCache.set(url, img);
+    var btnAmp = document.getElementById('btnFilterAmpliacion');
+    if (btnAmp) btnAmp.textContent = '🖼️ Ampliación (' + stats.ampliacion + ')';
+    var btnCF = document.getElementById('btnFilterCajaFotos');
+    if (btnCF) btnCF.textContent = '📦 Caja Fotos' + (stats.caja_fotos !== null ? ' ✓' : '');
+    var btnCU = document.getElementById('btnFilterCajaUsb');
+    if (btnCU) btnCU.textContent = '💾 Caja USB' + (stats.caja_usb !== null ? ' ✓' : '');
 }
 
 // ========================================
@@ -548,18 +318,13 @@ function _preloadImg(url) {
 // ========================================
 function openModal(index) {
     currentPhotoIndex = index;
-    try { localStorage.setItem(KEY_LAST, index); } catch (e) {}
     const modal = document.getElementById('photoModal');
     const modalImageContainer = document.querySelector('.modal-image-container');
-    const modalPhotoNumber = document.getElementById('modalPhotoNumber');
 
     const photo = photos[index];
-    const displayNumber = `Foto ${index + 1}`;
+    const displayNumber = 'Foto ' + (index + 1);
 
-    modalPhotoNumber.textContent = displayNumber;
-
-    document.getElementById('modalImage').src = photo;
-    document.getElementById('modalImage').alt = displayNumber;
+    modalImageContainer.innerHTML = '<img id="modalImage" src="' + photo + '" alt="' + displayNumber + '"><div class="modal-photo-number" id="modalPhotoNumber">' + displayNumber + '</div>';
 
     const selection = photoSelections[index] || {};
 
@@ -570,23 +335,15 @@ function openModal(index) {
 
     modal.classList.add('active');
     updateNavigationButtons();
-
-    modalOpen = true;
     document.body.style.overflow = 'hidden';
-
-    // Precargar anterior y siguiente
-    const next = photos[(index + 1) % photos.length];
-    const prev = photos[(index - 1 + photos.length) % photos.length];
-    setTimeout(() => { _preloadImg(next); _preloadImg(prev); }, 50);
 }
 
 function closeModal() {
+    saveCurrentSelections();
+    renderGallery();
     const modal = document.getElementById('photoModal');
     modal.classList.remove('active');
-
-    document.body.style.overflow = '';
-    modalOpen = false;
-
+    document.body.style.overflow = 'auto';
     currentPhotoIndex = null;
 }
 
@@ -597,16 +354,12 @@ function navigatePhoto(direction) {
     if (currentPhotoIndex === null) return;
 
     let newIndex;
-    if (direction === "next") {
+    if (direction === 'next') {
         newIndex = currentPhotoIndex + 1;
-        if (newIndex >= photos.length) {
-            newIndex = 0;
-        }
-    } else if (direction === "prev") {
+        if (newIndex >= photos.length) newIndex = 0;
+    } else {
         newIndex = currentPhotoIndex - 1;
-        if (newIndex < 0) {
-            newIndex = photos.length - 1;
-        }
+        if (newIndex < 0) newIndex = photos.length - 1;
     }
 
     saveCurrentSelections();
@@ -617,147 +370,133 @@ function saveCurrentSelections() {
     if (currentPhotoIndex === null) return;
 
     const selectedCategories = {};
-    let hasAnySelection = false;
-
-    document.querySelectorAll(".option-btn").forEach(btn => {
+    document.querySelectorAll('.option-btn').forEach(btn => {
         const category = btn.dataset.category;
-        const isSelected = btn.classList.contains("selected");
-        selectedCategories[category] = isSelected;
-        if (isSelected) hasAnySelection = true;
+        selectedCategories[category] = btn.classList.contains('selected');
     });
 
-    if (hasAnySelection) {
-        photoSelections[currentPhotoIndex] = selectedCategories;
-    } else {
-        delete photoSelections[currentPhotoIndex];
-    }
-
-    saveSelections();
+    persistPhotoSelection(currentPhotoIndex, selectedCategories);
     updateStats();
     updateFilterButtons();
 }
 
-function updateNavigationButtons() {
-    const btnPrev = document.getElementById("btnPrevPhoto");
-    const btnNext = document.getElementById("btnNextPhoto");
+function persistPhotoSelection(index, selection, options) {
+    const previousSelection = photoSelections[index] || {};
+    const normalized = normalizeSelection(selection);
+    const changed = !selectionsAreEqual(previousSelection, normalized);
+    const silent = options && options.silent;
 
+    if (!changed) {
+        saveSelections({ sync: false });
+        return false;
+    }
+
+    // Exclusive categories: caja_fotos and caja_usb (only 1 photo each)
+    ['caja_fotos', 'caja_usb'].forEach(excl => {
+        if (normalized[excl]) {
+            Object.keys(photoSelections).forEach(idx => {
+                if (parseInt(idx) !== index && photoSelections[idx] && photoSelections[idx][excl]) {
+                    photoSelections[idx][excl] = false;
+                    if (!hasAnySelection(photoSelections[idx])) {
+                        delete photoSelections[idx];
+                        if (typeof sbDeleteSelection === 'function') {
+                            sbDeleteSelection(parseInt(idx)).catch(function(e) { console.warn('[Supabase] Delete:', e.message); });
+                        }
+                    } else {
+                        if (typeof sbSaveSelection === 'function') {
+                            sbSaveSelection(parseInt(idx), photoSelections[idx]).catch(function(e) { console.warn('[Supabase] Save:', e.message); });
+                        }
+                    }
+                }
+            });
+        }
+    });
+
+    if (hasAnySelection(normalized)) {
+        photoSelections[index] = normalized;
+        saveSelections({ sync: false });
+        if (typeof sbSaveSelection === 'function') {
+            sbSaveSelection(index, normalized).catch(function(e) { console.warn('[Supabase] Save:', e.message); });
+        } else if (typeof sbUpsertSelections === 'function') {
+            sbUpsertSelections().catch(function(e) { console.warn('[Supabase] Sync:', e.message); });
+        }
+    } else {
+        delete photoSelections[index];
+        saveSelections({ sync: false });
+        if (typeof sbDeleteSelection === 'function') {
+            sbDeleteSelection(index).catch(function(e) { console.warn('[Supabase] Delete:', e.message); });
+        }
+    }
+
+    if (!silent) showToast('Selección actualizada', 'success');
+    return true;
+}
+
+function updateNavigationButtons() {
+    const btnPrev = document.getElementById('btnPrevPhoto');
+    const btnNext = document.getElementById('btnNextPhoto');
     if (btnPrev && btnNext) {
         btnPrev.disabled = false;
         btnNext.disabled = false;
     }
 }
 
-function updateCard(index) {
-    const card = document.querySelector(`.photo-card[data-index="${index}"]`);
-    if (!card) return;
-
-    const selection = photoSelections[index] || {};
-    const hasAny = selection.impresion || selection.invitacion || selection.descartada;
-
-    // Recalcular clases de color
-    card.className = 'photo-card';
-    if (selection.descartada) {
-        card.classList.add('has-descartada');
-    } else {
-        const cats = [];
-        if (selection.impresion) cats.push('impresion');
-        if (selection.invitacion) cats.push('invitacion');
-        if (cats.length > 1) card.classList.add('has-multiple');
-        else if (cats.length === 1) card.classList.add(`has-${cats[0]}`);
-    }
-
-    // Actualizar badges sin tocar el <img>
-    const existing = card.querySelector('.photo-badges');
-    if (existing) existing.remove();
-    if (hasAny) {
-        const badges = document.createElement('div');
-        badges.className = 'photo-badges';
-        if (selection.impresion) badges.innerHTML += '<span class="badge badge-impresion">📸 Impresión</span>';
-        if (selection.invitacion) badges.innerHTML += '<span class="badge badge-invitacion">💌 Invitación</span>';
-        if (selection.descartada) badges.innerHTML += '<span class="badge badge-descartada">❌ Descartada</span>';
-        card.appendChild(badges);
-    }
-
-    // Aplicar filtro actual
-    let show = false;
-    switch (currentFilter) {
-        case 'all': show = true; break;
-        case 'impresion': show = selection.impresion === true; break;
-        case 'invitacion': show = selection.invitacion === true; break;
-        case 'descartada': show = selection.descartada === true; break;
-        case 'sin-clasificar': show = !selection.impresion && !selection.invitacion && !selection.descartada; break;
-    }
-    card.classList.toggle('hidden', !show);
-}
-
 function saveModalSelection() {
     if (currentPhotoIndex === null) return;
 
     const selectedCategories = {};
-    let hasAnySelection = false;
-
     document.querySelectorAll('.option-btn').forEach(btn => {
         const category = btn.dataset.category;
-        const isSelected = btn.classList.contains('selected');
-        selectedCategories[category] = isSelected;
-        if (isSelected) hasAnySelection = true;
+        selectedCategories[category] = btn.classList.contains('selected');
     });
 
-    // Radio behavior: caja_fotos y caja_usb solo pueden estar en 1 foto
-    ['caja_fotos', 'caja_usb'].forEach(excl => {
-        if (selectedCategories[excl]) {
-            Object.keys(photoSelections).forEach(idx => {
-                if (parseInt(idx) !== currentPhotoIndex && photoSelections[idx][excl]) {
-                    photoSelections[idx][excl] = false;
-                    updateCard(parseInt(idx));
-                }
-            });
-        }
-    });
-
-    if (hasAnySelection) {
-        photoSelections[currentPhotoIndex] = selectedCategories;
-    } else {
-        delete photoSelections[currentPhotoIndex];
-        if (sbDisponible) sbDeleteSelection(currentPhotoIndex).catch(e => console.warn('[Supabase] Delete:', e.message));
-    }
-
-    saveSelections();
-    updateCard(currentPhotoIndex);   // solo actualiza esa tarjeta, sin recargar imágenes
+    persistPhotoSelection(currentPhotoIndex, selectedCategories, { silent: true });
+    renderGallery();
     updateStats();
     updateFilterButtons();
     closeModal();
     showToast('Selección guardada correctamente', 'success');
 }
 
+function deleteCurrentSelection() {
+    if (currentPhotoIndex === null) return;
+    const displayNumber = currentPhotoIndex + 1;
+    if (!confirm('¿Borrar la selección de la foto ' + displayNumber + '? Esta acción se sincronizará con todos los dispositivos.')) {
+        return;
+    }
+    persistPhotoSelection(currentPhotoIndex, {}, { silent: true });
+    document.querySelectorAll('.option-btn').forEach(btn => btn.classList.remove('selected'));
+    renderGallery();
+    updateStats();
+    updateFilterButtons();
+    closeModal();
+    showToast('Selección borrada', 'success');
+}
+
 // ========================================
 // EXPORT FUNCTIONS
 // ========================================
 function exportToJSON() {
-    const stats = getStats();
-    const fotosAdicionales = Math.max(0, stats.impresion - LIMITES.impresion);
-    const costoExtra = fotosAdicionales * COSTO_FOTO_ADICIONAL;
-
     const exportData = {
-        evento: 'XV Años - Sheilyn Guadalupe',
+        evento: 'XV Años Sheilyn Guadalupe',
         fecha_exportacion: new Date().toISOString(),
         total_fotos: photos.length,
-        estadisticas: stats,
-        fotos_incluidas: LIMITES.impresion,
-        fotos_adicionales: fotosAdicionales,
-        costo_adicional: costoExtra,
+        estadisticas: getStats(),
         selecciones: []
     };
 
     photos.forEach((photo, index) => {
         const selection = photoSelections[index];
-        if (selection && (selection.impresion || selection.invitacion || selection.descartada)) {
+        if (selection && hasAnySelection(selection)) {
             exportData.selecciones.push({
                 numero_foto: index + 1,
                 archivo: photo,
+                ampliacion: selection.ampliacion || false,
                 impresion: selection.impresion || false,
                 invitacion: selection.invitacion || false,
-                descartada: selection.descartada || false
+                descartada: selection.descartada || false,
+                caja_fotos: selection.caja_fotos || false,
+                caja_usb: selection.caja_usb || false
             });
         }
     });
@@ -766,44 +505,56 @@ function exportToJSON() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `seleccion-fotos-xv-sheilyn-guadalupe-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = 'seleccion-fotos-xv-sheilyn-guadalupe-' + new Date().toISOString().split('T')[0] + '.json';
     a.click();
     URL.revokeObjectURL(url);
-
     showToast('Reporte descargado correctamente', 'success');
 }
 
 function generateTextSummary() {
     const stats = getStats();
-    const fotosAdicionales = Math.max(0, stats.impresion - LIMITES.impresion);
-    const costoExtra = fotosAdicionales * COSTO_FOTO_ADICIONAL;
+    let summary = '📸 SELECCIÓN DE FOTOS - XV AÑOS SHEILYN GUADALUPE\n';
+    summary += '═══════════════════════════════════════════\n\n';
+    summary += '📊 RESUMEN:\n';
+    summary += '   Total de fotos: ' + photos.length + '\n';
+    summary += '   🖼️  Para ampliación: ' + stats.ampliacion + '\n';
+    summary += '   📸 Para impresión: ' + stats.impresion + (LIMITES.impresion ? '/' + LIMITES.impresion : '') + '\n';
+    summary += '   💌 Para invitación: ' + stats.invitacion + '\n';
+    summary += '   ❌ Descartadas: ' + stats.descartada + '\n';
+    summary += '   📦 Caja Fotos: ' + (stats.caja_fotos !== null ? 'Foto ' + (stats.caja_fotos + 1) : 'Sin asignar') + '\n';
+    summary += '   💾 Caja USB: ' + (stats.caja_usb !== null ? 'Foto ' + (stats.caja_usb + 1) : 'Sin asignar') + '\n';
+    summary += '   ⭕ Sin clasificar: ' + stats.sinClasificar + '\n\n';
 
-    let summary = '🎉 SELECCIÓN DE FOTOS - XV AÑOS SHEILYN GUADALUPE\n';
-    summary += '═══════════════════════════════════════════════════\n\n';
-    summary += `📋 SEGÚN CONTRATO:\n`;
-    summary += `   📸 Impresión incluida: ${LIMITES.impresion} fotos\n\n`;
-    summary += `📊 RESUMEN ACTUAL:\n`;
-    summary += `   Total de fotos disponibles: ${photos.length}\n`;
-    summary += `   📸 Para impresión: ${stats.impresion}/${LIMITES.impresion} ${stats.impresion === LIMITES.impresion ? '✓' : stats.impresion > LIMITES.impresion ? '⚠️ ADICIONALES' : '⚠️ FALTA'}\n`;
-    summary += `   💌 Para invitación: ${stats.invitacion}\n`;
-    summary += `   ❌ Descartadas: ${stats.descartada}\n`;
-    summary += `   ⭕ Sin clasificar: ${stats.sinClasificar}\n\n`;
+    const categories = ['ampliacion', 'impresion', 'invitacion', 'descartada'];
+    const categoryNames = {
+        ampliacion: '🖼️  AMPLIACIÓN',
+        impresion: '📸 IMPRESIÓN',
+        invitacion: '💌 INVITACIÓN',
+        descartada: '❌ DESCARTADAS'
+    };
 
-    if (fotosAdicionales > 0) {
-        summary += `💰 COSTO ADICIONAL:\n`;
-        summary += `   Fotos adicionales: ${fotosAdicionales}\n`;
-        summary += `   Costo por foto: $${COSTO_FOTO_ADICIONAL} MXN\n`;
-        summary += `   TOTAL ADICIONAL: $${costoExtra} MXN\n\n`;
-    }
+    categories.forEach(category => {
+        const photosInCategory = [];
+        photos.forEach((photo, index) => {
+            const selection = photoSelections[index];
+            if (selection && selection[category]) {
+                photosInCategory.push(index + 1);
+            }
+        });
 
-    summary += `\n📅 Generado el: ${new Date().toLocaleString('es-MX')}\n`;
+        if (photosInCategory.length > 0) {
+            summary += categoryNames[category] + ':\n';
+            summary += '   Fotos: ' + photosInCategory.join(', ') + '\n';
+            summary += '   Total: ' + photosInCategory.length + '\n\n';
+        }
+    });
 
+    summary += '\n📅 Generado el: ' + new Date().toLocaleString('es-MX') + '\n';
     return summary;
 }
 
 function copyToClipboard() {
     const summary = generateTextSummary();
-
     navigator.clipboard.writeText(summary).then(() => {
         showToast('Resumen copiado al portapapeles', 'success');
     }).catch(() => {
@@ -814,172 +565,79 @@ function copyToClipboard() {
 // ========================================
 // TOAST NOTIFICATION
 // ========================================
-function showToast(message, type = 'success') {
+function showToast(message, type) {
+    type = type || 'success';
     const toast = document.getElementById('toast');
-    if (!toast) return;
-
     toast.textContent = message;
-    toast.className = `toast ${type}`;
-
-    setTimeout(() => {
-        toast.classList.add('show');
-    }, 100);
-
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
+    toast.className = 'toast ' + type;
+    setTimeout(() => { toast.classList.add('show'); }, 100);
+    setTimeout(() => { toast.classList.remove('show'); }, 3000);
 }
 
 // ========================================
 // EVENT LISTENERS
 // ========================================
 document.addEventListener('DOMContentLoaded', () => {
+    loadSelections();
     renderGallery();
-    setupLazyLoad();
-
-    // Sugerir fotos si aún no hay selecciones guardadas
-    const SUGERENCIAS = {
-        ampliacion: 45,   // DSC_4963 — retrato a media sesión
-        caja_fotos: 5,    // DJI drone — foto aérea para portada de caja
-        caja_usb:   80,   // DSC_4999 — otro retrato elegante
-    };
-    if (Object.keys(photoSelections).length === 0) {
-        Object.entries(SUGERENCIAS).forEach(([cat, idx]) => {
-            if (!photoSelections[idx]) photoSelections[idx] = {};
-            photoSelections[idx][cat] = true;
-        });
-    }
-
     updateStats();
     updateFilterButtons();
-    loadSelections();
 
-    // Restaurar filtro y scroll de la sesión anterior
-    const savedFilter = localStorage.getItem(KEY_FILTER);
-    if (savedFilter) setFilter(savedFilter);
-    const savedScroll = parseInt(localStorage.getItem(KEY_SCROLL) || '0');
-    if (savedScroll > 0) {
-        requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, savedScroll)));
-    }
+    document.getElementById('btnFilterAll').addEventListener('click', () => setFilter('all'));
+    document.getElementById('btnFilterImpresion').addEventListener('click', () => setFilter('impresion'));
+    document.getElementById('btnFilterInvitacion').addEventListener('click', () => setFilter('invitacion'));
+    document.getElementById('btnFilterDescartada').addEventListener('click', () => setFilter('descartada'));
+    document.getElementById('btnFilterSinClasificar').addEventListener('click', () => setFilter('sin-clasificar'));
+    document.getElementById('btnFilterAmpliacion').addEventListener('click', () => setFilter('ampliacion'));
+    document.getElementById('btnFilterCajaFotos').addEventListener('click', () => setFilter('caja_fotos'));
+    document.getElementById('btnFilterCajaUsb').addEventListener('click', () => setFilter('caja_usb'));
 
-    // Filter buttons
-    const btnFilterAll = document.getElementById('btnFilterAll');
-    const btnFilterImpresion = document.getElementById('btnFilterImpresion');
-    const btnFilterInvitacion = document.getElementById('btnFilterInvitacion');
-    const btnFilterDescartada = document.getElementById('btnFilterDescartada');
-    const btnFilterSinClasificar = document.getElementById('btnFilterSinClasificar');
+    document.getElementById('btnExport').addEventListener('click', exportToJSON);
+    document.getElementById('btnShare').addEventListener('click', copyToClipboard);
+    document.getElementById('btnClear').addEventListener('click', clearAllSelections);
 
-    if (btnFilterAll) btnFilterAll.addEventListener('click', () => setFilter('all'));
-    if (btnFilterImpresion) btnFilterImpresion.addEventListener('click', () => setFilter('impresion'));
-    if (btnFilterInvitacion) btnFilterInvitacion.addEventListener('click', () => setFilter('invitacion'));
-    if (btnFilterDescartada) btnFilterDescartada.addEventListener('click', () => setFilter('descartada'));
-    if (btnFilterSinClasificar) btnFilterSinClasificar.addEventListener('click', () => setFilter('sin-clasificar'));
+    document.querySelector('.modal-close').addEventListener('click', closeModal);
+    document.getElementById('btnCancelSelection').addEventListener('click', closeModal);
+    document.getElementById('btnSaveSelection').addEventListener('click', saveModalSelection);
 
-    // Action buttons
-    const btnExport = document.getElementById('btnExport');
-    const btnShare = document.getElementById('btnShare');
-    const btnClear = document.getElementById('btnClear');
+    var btnDelete = document.getElementById('btnDeleteSelection');
+    if (btnDelete) btnDelete.addEventListener('click', deleteCurrentSelection);
 
-    if (btnExport) btnExport.addEventListener('click', exportToJSON);
-    if (btnShare) btnShare.addEventListener('click', copyToClipboard);
-    if (btnClear) btnClear.addEventListener('click', clearAllSelections);
-
-    // Modal controls
-    const modalClose = document.querySelector('.modal-close');
-    const btnCancelSelection = document.getElementById('btnCancelSelection');
-    const btnSaveSelection = document.getElementById('btnSaveSelection');
-
-    if (modalClose) modalClose.addEventListener('click', closeModal);
-    if (btnCancelSelection) btnCancelSelection.addEventListener('click', closeModal);
-    if (btnSaveSelection) btnSaveSelection.addEventListener('click', saveModalSelection);
-
-    // Option buttons
     document.querySelectorAll('.option-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             btn.classList.toggle('selected');
         });
     });
 
-    // Close modal on outside click + swipe táctil para Android
-    const photoModal = document.getElementById('photoModal');
-    if (photoModal) {
-        photoModal.addEventListener('click', (e) => {
-            if (e.target.id === 'photoModal') {
-                closeModal();
-            }
-        });
-
-        // Swipe: derecha = guardar selección + siguiente, izquierda = quitar + siguiente
-        photoModal.addEventListener('touchstart', (e) => {
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-        }, { passive: true });
-
-        photoModal.addEventListener('touchend', (e) => {
-            const deltaX = e.changedTouches[0].clientX - touchStartX;
-            const deltaY = e.changedTouches[0].clientY - touchStartY;
-            if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
-                if (deltaX > 0) swipeSaveAndNext();
-                else swipeClearAndNext();
-            }
-        }, { passive: true });
-    }
-
-    // Navigation buttons
-    const btnPrevPhoto = document.getElementById('btnPrevPhoto');
-    const btnNextPhoto = document.getElementById('btnNextPhoto');
-
-    if (btnPrevPhoto) btnPrevPhoto.addEventListener('click', () => navigatePhoto('prev'));
-    if (btnNextPhoto) btnNextPhoto.addEventListener('click', () => navigatePhoto('next'));
-
-    // Polling: sincronizar con otros usuarios cada 30 segundos
-    if (sbDisponible) {
-        setInterval(() => { if (!modalOpen) loadSelections(true); }, 30000);
-    }
-
-    // Keyboard navigation
-    document.addEventListener('keydown', (e) => {
-        const modal = document.getElementById('photoModal');
-        if (modal && modal.classList.contains('active')) {
-            if (e.key === 'Escape') {
-                closeModal();
-            } else if (e.key === 'Enter') {
-                saveModalSelection();
-            } else if (e.key === 'ArrowLeft') {
-                navigatePhoto('prev');
-            } else if (e.key === 'ArrowRight') {
-                navigatePhoto('next');
-            }
-        }
+    document.getElementById('photoModal').addEventListener('click', (e) => {
+        if (e.target.id === 'photoModal') closeModal();
     });
 
-});
+    document.getElementById('btnPrevPhoto').addEventListener('click', () => navigatePhoto('prev'));
+    document.getElementById('btnNextPhoto').addEventListener('click', () => navigatePhoto('next'));
 
-// Guardar scroll con debounce
-window.addEventListener('scroll', () => {
-    if (modalOpen) return;
-    clearTimeout(scrollSaveTimer);
-    scrollSaveTimer = setTimeout(() => {
-        try { localStorage.setItem(KEY_SCROLL, window.scrollY); } catch (e) {}
-    }, 300);
-}, { passive: true });
+    document.addEventListener('keydown', (e) => {
+        const modal = document.getElementById('photoModal');
+        if (modal.classList.contains('active')) {
+            if (e.key === 'Escape') closeModal();
+            else if (e.key === 'Enter') saveModalSelection();
+            else if (e.key === 'ArrowLeft') navigatePhoto('prev');
+            else if (e.key === 'ArrowRight') navigatePhoto('next');
+        }
+    });
+});
 
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-        saveSelections();
-        try { localStorage.setItem(KEY_SCROLL, window.scrollY); } catch (e) {}
+        saveSelections({ sync: false });
+    } else if (typeof sbRefreshSelections === 'function') {
+        sbRefreshSelections().catch(function(e) { console.warn('[Supabase] Refresh:', e.message); });
     }
 });
 
 window.addEventListener('beforeunload', () => {
-    saveSelections();
-    try { localStorage.setItem(KEY_SCROLL, window.scrollY); } catch (e) {}
+    saveSelections({ sync: false });
 });
-
-// Registrar Service Worker
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
-}
 
 // ========================================
 // DOWNLOAD FUNCTIONS
@@ -1006,7 +664,7 @@ async function downloadCurrentPhoto() {
         a.href = objUrl; a.download = filename;
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(function(){ URL.revokeObjectURL(objUrl); }, 2000);
-        sbRegistrarVisita('descarga');
+        if (typeof sbRegistrarVisita === 'function') sbRegistrarVisita('descarga');
         showToast('Descargando ' + filename, 'success');
     } catch(e) {
         window.open(url, '_blank');
@@ -1019,7 +677,6 @@ function downloadAndClose() {
     closeModal();
 }
 
-// Inyectar botones de descarga en el modal al cargar
 (function injectDownloadButtons(){
     function tryInject(){
         var actions = document.querySelector('.modal-actions');
