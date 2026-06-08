@@ -946,6 +946,11 @@ const photos = [
     "img/img 2.webp",
     "img/img1.webp",
 ];
+// Thumbnail helper: usa thumb/ en grid para ahorrar RAM en moviles
+function getThumbPath(fullPath) {
+    return fullPath.replace('img/', 'img/thumb/');
+}
+
 
 const STORAGE_KEY = 'xv_anos_sheilyn_guadalupe_photo_selections';
 const LIMITES = {
